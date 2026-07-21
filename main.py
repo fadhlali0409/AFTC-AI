@@ -31,7 +31,7 @@ class TelegramNotifier:
 
 def run_bot():
     logger.info("AFTC AI Bot initializing...")
-    TelegramNotifier.send_message("🦅 *AFTC AI Bot* is online and running with full architecture.")
+    TelegramNotifier.send_message("🦅 *AFTC AI Bot* يعمل الآن بكفاءة 24/7 ويراقب الأسواق باللغة العربية.")
     
     engine = Engine()
 
@@ -53,22 +53,25 @@ def run_bot():
                 
         except Exception as e:
             logger.error(f"Watchdog caught a critical error in main loop: {e}")
-            TelegramNotifier.send_message(f"⚠️ *AFTC AI Watchdog Alert*: Error in main loop: {e}")
+            TelegramNotifier.send_message(f"⚠️ *تنبيه نظام الحماية*: حدث خطأ في الحلقة الرئيسية: {e}")
             time.sleep(15)
         
         time.sleep(300) # دورة الفحص الكاملة للسوق
 
 def format_signal_message(signal):
+    direction_ar = "شراء (صاعد)" if signal['direction'] == "BULLISH" else "بيع (هابط)"
+    bias_ar = "صاعد" if signal['htf_bias'] == "BULLISH" else "هابط"
+    
     return (
-        f"🚨 *AFTC AI - CRT SIGNAL DETECTED* 🚨\n\n"
-        f"• *Symbol*: `{signal['symbol']}`\n"
-        f"• *Direction*: `{signal['direction']}`\n"
-        f"• *HTF Bias*: `{signal['htf_bias']}`\n"
-        f"• *Key Level*: `{signal['key_level']}`\n"
-        f"• *Quality Score*: `{signal['score']}/100`\n"
-        f"• *Entry*: `{signal['entry']}`\n"
-        f"• *Stop Loss*: `{signal['sl']}`\n"
-        f"• *Take Profit*: `{signal['tp']}`\n"
+        f"🚨 *تنبيه - تم رصد فرصة استراتيجية CRT* 🚨\n\n"
+        f"• *الزوج / الأداة*: `{signal['symbol']}`\n"
+        f"• *الجهة*: `{direction_ar}`\n"
+        f"• *الاتجاه العام (HTF Bias)*: `{bias_ar}`\n"
+        f"• *المستوى الرئيسي*: `{signal['key_level']}`\n"
+        f"• *تقييم الجودة*: `{signal['score']}/100`\n"
+        f"• *سعر الدخول*: `{signal['entry']}`\n"
+        f"• *وقف الخسارة*: `{signal['sl']}`\n"
+        f"• *هدف الربح*: `{signal['tp']}`\n"
     )
 
 if __name__ == "__main__":
