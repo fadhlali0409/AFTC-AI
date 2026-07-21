@@ -1,56 +1,75 @@
 import time
-import os
+import logging
 import requests
-import yfinance as yf
-from http.server import HTTPServer, BaseHTTPRequestHandler
-from threading import Thread
-from config import TELEGRAM_TOKEN, CHAT_ID, SYMBOLS
+from config import TELEGRAM_TOKEN, CHAT_ID, SYMBOLS, DEFAULT_HTF, DEFAULT_LTF
+from engine import Engine
 
-# سيرفر وهمي بسيط جداً لإبقاء خدمة Render نشطة (Web Service Keep-Alive)
-class SimpleHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(b"AFTC AI Bot is running!")
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
-def run_server():
-    port = int(os.environ.get("PORT", 10000))
-    server = HTTPServer(('0.0.0.0', port), SimpleHandler)
-    server.serve_forever()
+class TelegramNotifier:
+    @staticmethod
+    def send_message(message):
+        if not TELEGRAM_TOKEN or not CHAT_ID:
+            logger.error("Telegram credentials missing in config.")
+            return
+        url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+        payload = {
+            "chat_id": CHAT_ID,
+            "text": message,
+            "parse_mode": "Markdown"
+        }
+        for attempt in range(3):
+            try:
+                response = requests.post(url, json=payload, timeout=10)
+                if response.status_code == 200:
+                    return response.json()
+            except Exception as e:
+                logger.warning(f"Telegram send attempt {attempt+1} failed: {e}")
+                time.sleep(2)
+        logger.error("Failed to send Telegram notification after retries.")
 
-def send_telegram_message(message):
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    payload = {
-        "chat_id": CHAT_ID,
-        "text": message,
-        "parse_mode": "Markdown"
-    }
-    try:
-        response = requests.post(url, json=payload)
-        return response.json()
-    except Exception as e:
-        print(f"Error sending telegram message: {e}")
+def run_bot():
+    logger.info("AFTC AI Bot initializing...")
+    TelegramNotifier.send_message("🦅 *AFTC AI Bot* is online and running with full architecture.")
+    
+    engine = Engine()
 
-def check_market():
-    send_telegram_message("🤖 *AFTC AI Bot* is online and monitoring the markets...")
     while True:
         try:
             for symbol in SYMBOLS:
-                data = yf.download(symbol, period="5d", interval="1h", progress=False)
-                if not data.empty:
-                    current_price = float(data['Close'].iloc[-1])
-                    print(f"Checked {symbol}: {current_price}")
-                time.sleep(2)
+                logger.info(f"Processing symbol: {symbol}")
+                
+                # عزل كل رمز على حدة لضمان عدم توقف البوت لو فشل رمز واحد
+                try:
+                    signal = engine.process_symbol(symbol, DEFAULT_HTF, DEFAULT_LTF)
+                    if signal and signal.get("status") == "READY":
+                        message = format_signal_message(signal)
+                        TelegramNotifier.send_message(message)
+                except Exception as symbol_err:
+                    logger.error(f"Error processing symbol {symbol}: {symbol_err}")
+                
+                time.sleep(3) # فترة راحة بين الرموز لحماية الـ API و الـ Rate Limits
+                
         except Exception as e:
-            print(f"Error in market loop: {e}")
+            logger.error(f"Watchdog caught a critical error in main loop: {e}")
+            TelegramNotifier.send_message(f"⚠️ *AFTC AI Watchdog Alert*: Error in main loop: {e}")
+            time.sleep(15)
         
-        time.sleep(300)
+        time.sleep(300) # دورة الفحص الكاملة للسوق
+
+def format_signal_message(signal):
+    return (
+        f"🚨 *AFTC AI - CRT SIGNAL DETECTED* 🚨\n\n"
+        f"• *Symbol*: `{signal['symbol']}`\n"
+        f"• *Direction*: `{signal['direction']}`\n"
+        f"• *HTF Bias*: `{signal['htf_bias']}`\n"
+        f"• *Key Level*: `{signal['key_level']}`\n"
+        f"• *Quality Score*: `{signal['score']}/100`\n"
+        f"• *Entry*: `{signal['entry']}`\n"
+        f"• *Stop Loss*: `{signal['sl']}`\n"
+        f"• *Take Profit*: `{signal['tp']}`\n"
+    )
 
 if __name__ == "__main__":
-    # تشغيل السيرفر الوهمي في خلفية منفصلة لضمان رضا منصة Render
-    server_thread = Thread(target=run_server)
-    server_thread.daemon = True
-    server_thread.start()
-    
-    # تشغيل بوت السوق الأساسي
-    check_market()
+    run_bot()
