@@ -1,0 +1,23 @@
+import os
+
+TELEGRAM_TOKEN = os.environ.get("API_TOKEN", "8801362575:AAGIIbEa08s9VKGKYVWLAXQ-VdlV-Wm-Xe0")
+CHAT_ID = "178322395"
+
+DEFAULT_HTF = "4h"
+DEFAULT_LTF = "15m"
+
+SYMBOLS = [
+    "EURUSD=X", "GBPUSD=X", "AUDUSD=X", "NZDUSD=X",
+    "USDCAD=X", "USDCHF=X", "USDJPY=X", "EURGBP=X",
+    "EURJPY=X", "GBPJPY=X", "GC=F", "NQ=F", "ES=F", "BTC-USD"
+]
+
+SCORE_WEIGHTS = {
+    "bias": 15,
+    "key_level": 15,
+    "trend_alignment": 15,
+    "momentum": 15,
+    "volatility": 15,
+    "rsi_zone": 10,
+    "volume": 15
+}
