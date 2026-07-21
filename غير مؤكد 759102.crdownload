@@ -1,0 +1,15 @@
+def check_liquidity_sweep(df, key_levels):
+    if df is None or len(df) < 2 or not key_levels:
+        return {"swept": False, "level": None, "type": "NONE"}
+    last_candle = df.iloc[-1]
+    last_close = float(last_candle['Close'])
+    last_high = float(last_candle['High'])
+    last_low = float(last_candle['Low'])
+    for lvl in key_levels:
+        lvl_high = lvl["high"]
+        lvl_low = lvl["low"]
+        if last_low < lvl_low and last_close > lvl_low:
+            return {"swept": True, "level": lvl, "type": "TBS"}
+        if last_high > lvl_high and last_close < lvl_high:
+            return {"swept": True, "level": lvl, "type": "TBS"}
+    return {"swept": False, "level": None, "type": "NONE"}

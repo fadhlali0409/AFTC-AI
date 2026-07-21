@@ -1,0 +1,6 @@
+def calculate_quality_score(weights, stages_status):
+    total = 0
+    for stage, passed in stages_status.items():
+        if passed and stage in weights:
+            total += weights[stage]
+    return total

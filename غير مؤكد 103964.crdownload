@@ -1,0 +1,62 @@
+# main.py
+import time
+import logging
+import yfinance as yf
+from config import TELEGRAM_TOKEN, CHAT_ID, SYMBOLS, DEFAULT_HTF, DEFAULT_LTF
+from engine import run_pipeline
+from modules.telegram_sender import send_telegram_message
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[logging.StreamHandler()]
+)
+
+def fetch_data(symbol, interval, period):
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            ticker = yf.Ticker(symbol)
+            df = ticker.history(period=period, interval=interval, timeout=15)
+            if df is not None and not df.empty:
+                return df
+        except Exception as e:
+            logging.warning(f"Attempt {attempt+1} failed for {symbol}: {e}")
+        time.sleep(3 * (attempt + 1))
+    return None
+
+def run_bot():
+    logging.info("🦅 FTC AI Production Engine Started 24/7.")
+    send_telegram_message(TELEGRAM_TOKEN, CHAT_ID, "🦅 *FTC AI Production Engine Activated 24/7.*")
+    while True:
+        try:
+            for symbol in SYMBOLS:
+                try:
+                    clean_name = symbol.replace("=X", "").replace("=F", "")
+                    df_htf = fetch_data(symbol, interval=DEFAULT_HTF, period="10d")
+                    df_ltf = fetch_data(symbol, interval=DEFAULT_LTF, period="5d")
+                    if df_htf is None or df_ltf is None:
+                        continue
+                    signal = run_pipeline(df_htf, df_ltf)
+                    if signal["action"] in ["BUY", "SELL"]:
+                        msg = (
+                            f"🥇 *CRT Signal: {clean_name}*\n"
+                            f"Action: *{signal['action']}*\n"
+                            f"Score: {signal['score']}/100\n"
+                            f"Entry: {signal['entry']}\n"
+                            f"SL: {signal['sl']}\n"
+                            f"TP1: {signal['tp1']}\n"
+                            f"TP2: {signal['tp2']}\n"
+                            f"TP3: {signal['tp3']}"
+                        )
+                        send_telegram_message(TELEGRAM_TOKEN, CHAT_ID, msg)
+                except Exception as symbol_err:
+                    logging.error(f"Error processing symbol {symbol}: {symbol_err}", exc_info=True)
+                    continue
+            time.sleep(900)
+        except Exception as main_err:
+            logging.critical(f"Critical loop error: {main_err}", exc_info=True)
+            time.sleep(30)
+
+if __name__ == "__main__":
+    run_bot()

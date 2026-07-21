@@ -1,0 +1,62 @@
+# engine.py
+import logging
+from modules.market_structure import determine_htf_bias
+from modules.key_levels import identify_key_levels
+from modules.liquidity import check_liquidity_sweep
+from modules.pda import validate_mss_cisd
+from modules.confirmation import check_confirmation
+from modules.quality_score import calculate_quality_score
+from modules.risk_manager import calculate_risk
+from config import SCORE_WEIGHTS, MIN_QUALITY_SCORE
+
+def run_pipeline(df_htf, df_ltf):
+    template = {"action": "HOLD", "score": 0}
+    try:
+        htf_bias = determine_htf_bias(df_htf)
+        if htf_bias == "NEUTRAL":
+            return template
+        levels = identify_key_levels(df_ltf)
+        if not levels:
+            return template
+        sweep = check_liquidity_sweep(df_ltf, levels)
+        if not sweep["swept"]:
+            return template
+        mss_res = validate_mss_cisd(df_ltf, sweep)
+        if not mss_res["mss"]:
+            return template
+        target_level = sweep["level"]
+        last_low = float(df_ltf['Low'].iloc[-1])
+        last_high = float(df_ltf['High'].iloc[-1])
+        returned_to_value = (last_low <= target_level["high"] and last_high >= target_level["low"])
+        if not returned_to_value:
+            return template
+        confirmed = check_confirmation(df_ltf)
+        if not confirmed:
+            return template
+        stages = {
+            "bias": True,
+            "key_level": True,
+            "sweep": sweep["swept"],
+            "mss_cisd": mss_res["mss"],
+            "return_to_value": returned_to_value,
+            "confirmation": confirmed
+        }
+        score = calculate_quality_score(SCORE_WEIGHTS, stages)
+        if score < MIN_QUALITY_SCORE:
+            return template
+        action = "BUY" if htf_bias == "BULLISH" else "SELL"
+        last_close = float(df_ltf['Close'].iloc[-1])
+        risk_data = calculate_risk(last_close, target_level, htf_bias)
+        return {
+            "action": action,
+            "bias": htf_bias,
+            "score": score,
+            "entry": last_close,
+            "sl": risk_data["sl"],
+            "tp1": risk_data["tp1"],
+            "tp2": risk_data["tp2"],
+            "tp3": risk_data["tp3"]
+        }
+    except Exception as e:
+        logging.error(f"Error in engine pipeline: {e}", exc_info=True)
+        return template

@@ -1,0 +1,14 @@
+from modules.market_structure import identify_swings
+
+def validate_mss_cisd(df, sweep_info):
+    if df is None or len(df) < 3 or not sweep_info["swept"]:
+        return {"mss": False, "cisd": False}
+    swings = identify_swings(df)
+    if not swings:
+        return {"mss": False, "cisd": False}
+    last_close = float(df.iloc[-1]['Close'])
+    recent_swing_high = max([s["price"] for s in swings if s["type"] == "SWING_HIGH"], default=None)
+    recent_swing_low = min([s["price"] for s in swings if s["type"] == "SWING_LOW"], default=None)
+    mss_bullish = recent_swing_high and last_close > recent_swing_high
+    mss_bearish = recent_swing_low and last_close < recent_swing_low
+    return {"mss": mss_bullish or mss_bearish, "cisd": False}
